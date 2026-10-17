@@ -144,3 +144,15 @@ uv run higgslab instructor reset --repo OWNER/WORKSHOP --suite replace
 - **Hosted scoring is enabled before an isolation rehearsal:** disable it and switch to the controlled fallback.
 
 Ask teams to present the question, one changed component, their prediction, baseline and changed metrics, limitations, and what they would try next. A clearly explained negative result is a successful workshop outcome.
+
+## Student submission protections at a glance
+
+The hosted and controlled Docker evaluators include these protections against accidental or deliberately disruptive submissions:
+
+- **Restricted access:** student code runs as an unprivileged user without network access, host credentials, or the sealed scoring answers.
+- **Protected files:** the submitted code and input data are read-only; temporary work and results have limited writable space.
+- **Bounded execution:** CPU, memory, process counts, and runtime are limited. Runaway submissions are stopped and their containers removed; student logs are discarded.
+- **Checked submissions and results:** scoring uses a pinned commit, checks submission files and sizes, and accepts only a small, validated result file. Result symlinks are rejected.
+- **Quick safety rehearsal:** automated checks exercise deliberately hostile submissions, including attempts to exceed resource limits. A matching passing report is required before opening hosted submissions.
+
+Run the [isolation rehearsal in setup step 3](#3-check-compute-data-and-isolation) on the workshop's intended Docker host. These checks reduce risk; they do not guarantee protection against every container escape. Ordinary local `higgslab check` runs the student's own trusted code directly and does not provide this isolation.
