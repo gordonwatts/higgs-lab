@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "higgslab"
+version = "0.1.0"
+description = "From events to evidence: a reproducible Higgs measurement tutorial"
+requires-python = ">=3.11,<3.14"
+dependencies = ["numpy==2.3.3", "scipy==1.16.2", "matplotlib==3.10.6"]
+
+[project.optional-dependencies]
+ml = ["torch==2.9.0"]
+dev = ["pytest==8.4.2", "mkdocs==1.6.1", "nbclient==0.10.2", "ipykernel==6.30.1", "uproot==5.6.6", "awkward==2.8.9"]
+
+[project.scripts]
+higgslab = "higgslab.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/higgslab", "evaluator"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

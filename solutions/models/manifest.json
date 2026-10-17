@@ -1,0 +1,37 @@
+{
+  "schema": "higgslab-model-manifest-v1",
+  "dataset_origin": "synthetic teaching surrogate; not ATLAS data",
+  "training_pool_size": 12000,
+  "training_pool_sha256": "6cdc794248bee759db54ebcbbae65d1a704cf87c33a3a429d996042207cc8b79",
+  "training_seed": 42,
+  "feature_contract": "dataset-v1 raw feature columns; train-only scales are embedded per model",
+  "models": {
+    "classifier": {
+      "file": "classifier.json",
+      "sha256": "6d1bbf4269d6440c938ed23fa582c8deda94ea24ac30b3da3ce4d26fd4a700cd",
+      "format": "higgslab-model-v1",
+      "model_mode": "supervised",
+      "training_seed": 42,
+      "epochs": 4,
+      "parameter_count": 2561
+    },
+    "frozen": {
+      "file": "frozen.json",
+      "sha256": "9e9f62b06bfd794273009289c9fff763d1ca83df7af5ff9890c5568cb1b83d2c",
+      "format": "higgslab-model-v1",
+      "model_mode": "minihep-frozen",
+      "training_seed": 42,
+      "epochs": 4,
+      "parameter_count": 18117
+    },
+    "finetuned": {
+      "file": "finetuned.json",
+      "sha256": "212e7c73b63e3fe1b6ecee26626ca1bfce806032d46ca7153cba86afde2ab901",
+      "format": "higgslab-model-v1",
+      "model_mode": "minihep-finetuned",
+      "training_seed": 42,
+      "epochs": 4,
+      "parameter_count": 18117
+    }
+  }
+}

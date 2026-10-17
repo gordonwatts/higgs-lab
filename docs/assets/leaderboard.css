@@ -1,0 +1,12 @@
+.leaderboard-table {
+  border-collapse: collapse;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  width: max-content;
+}
+.leaderboard-table caption { font-weight: 600; margin: 0.5rem 0; text-align: left; }
+.leaderboard-table th, .leaderboard-table td { border: 1px solid #888; padding: 0.4rem 0.55rem; text-align: left; }
+.leaderboard-table th { background: #eee; }
+#leaderboard-plot svg { height: auto; max-width: 100%; }
+#leaderboard-plot svg text { fill: currentColor; font-size: 12px; }

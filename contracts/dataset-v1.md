@@ -1,0 +1,7 @@
+# dataset-v1
+
+`data/events.npz`, `mc/pool.npz`, `mc/pool_meta.json` are the canonical input. NPZ files contain one-dimensional equal-length numeric arrays; no pickle/object values. All momenta are GeV; eta is dimensionless; phi is radians. Two leptons and up to two jets have `lep_pt_0`, `lep_eta_0`, `lep_phi_0` (and slot 1), analogous jet columns, charge ±1, type 11/13, `met_et`, `met_phi`, `jet_n`. Absent jets are all zero. The MET token is `(MET cos phi, MET sin phi, 0, MET)`, a transverse proxy rather than a measured neutrino four-vector.
+
+Every table has a unique `event_id`. Simulation also has binary `label`, integer `process`, strictly positive `weight`, and `partition`: 0 train, 1 validation, 2 template. Label 1 is signal. Data has no label/weight. Simulation process weights sum to expected event yields at mu=1; reserved template partition is separately normalized to those yields. Negative-weight simulation is outside this teaching contract. IDs and duplicate kinematics cannot cross partitions. Observation and simulation identities must be disjoint. Synthetic generator sample IDs and source-row ROOT IDs are separate identity conventions; never concatenate unrelated datasets without remapping identity domains.
+
+Metadata declares units, origin, generator/source, expected signal/background, and process mapping. `checksums.json` records SHA256 for every input artifact excluding itself. Public truth is documented; sealed truth stays outside this directory. `higgslab check` verifies checksums, loading, result contract and determinism.

@@ -1,0 +1,281 @@
+{
+  "schema": "model-ablation-v1",
+  "provenance": {
+    "dataset_origin": "synthetic teaching surrogate; not ATLAS data",
+    "training_seed": 42,
+    "training_pool_size": 12000,
+    "training_pool_sha256": "6cdc794248bee759db54ebcbbae65d1a704cf87c33a3a429d996042207cc8b79",
+    "epochs": 4,
+    "suite_size": 24,
+    "suite_seed_start": 710,
+    "suite_truth_grid": [
+      0.0,
+      1.0,
+      1.5
+    ],
+    "suite_beta": 1.0,
+    "template_partition": 2,
+    "fit_settings": "shared higgslab.pipeline and likelihood; the (mT,mll) edges and nuisance prior stay fixed, while classifier score-bin counts vary only where listed"
+  },
+  "models": {
+    "template-fit": {
+      "validation_auc": null,
+      "fit_bins": "(mT, mll): 5 x 4",
+      "parameter_count": null,
+      "pretraining": null,
+      "classification": null,
+      "metrics": {
+        "n": 24,
+        "total_cases": 24,
+        "failures": 0,
+        "recovery_fraction": 1.0,
+        "mu_mean": 0.8545880938808222,
+        "mu_bias": 0.021254760547488906,
+        "mu_recovery_slope": 0.9195101278338877,
+        "mu_recovery_intercept": 0.08832965401924908,
+        "pull_mean": 0.2826023743593121,
+        "pull_width": 1.0330774347081777,
+        "mu_rms_residual": 0.10112962517633713,
+        "baseline_rms_residual": 0.10112962517633713,
+        "mu_precision": 0.10491498014438912,
+        "false_discovery_rate": 0.0,
+        "discovery_power": 1.0,
+        "honesty": 0.9679816501678585,
+        "precision_ratio": 1.0,
+        "score": 96.79816501678586,
+        "rankable": true
+      }
+    },
+    "classifier": {
+      "validation_auc": 0.8903923611111111,
+      "fit_bins": 8,
+      "parameter_count": 2561,
+      "pretraining": null,
+      "classification": {
+        "train_loss": [
+          0.4109440771579551,
+          0.3171314116011912,
+          0.3100648529352415,
+          0.30844707987165704
+        ],
+        "validation_loss": [
+          0.4075589874012283,
+          0.3132249822011794,
+          0.3069216330455313,
+          0.30579722880625704
+        ]
+      },
+      "metrics": {
+        "n": 24,
+        "total_cases": 24,
+        "failures": 0,
+        "recovery_fraction": 1.0,
+        "mu_mean": 0.8591101959886658,
+        "mu_bias": 0.025776862655332494,
+        "mu_recovery_slope": 0.9573139964065943,
+        "mu_recovery_intercept": 0.061348532316503834,
+        "pull_mean": 0.4243734883459476,
+        "pull_width": 1.0271685932502737,
+        "mu_rms_residual": 0.07815657948667622,
+        "baseline_rms_residual": 0.10112962517633713,
+        "mu_precision": 0.07920916699182427,
+        "false_discovery_rate": 0.0,
+        "discovery_power": 1.0,
+        "honesty": 0.9735500156169067,
+        "precision_ratio": 1.2939361707043135,
+        "score": 125.9711579196465,
+        "rankable": true
+      }
+    },
+    "frozen": {
+      "validation_auc": 0.633809375,
+      "fit_bins": 8,
+      "parameter_count": 18117,
+      "pretraining": {
+        "train_loss": [
+          0.9383890818400555,
+          0.8956883421970698,
+          0.8885988572461769,
+          0.8920401472678793
+        ],
+        "validation_loss": [
+          0.89835915880884,
+          0.8888111726552268,
+          0.8928113823711443,
+          0.8802885006827783
+        ]
+      },
+      "classification": {
+        "train_loss": [
+          0.4838728857595322,
+          0.4644348328033839,
+          0.4605772065265486,
+          0.45832133794306074
+        ],
+        "validation_loss": [
+          0.47887297054972094,
+          0.46087411754014634,
+          0.45839008291400035,
+          0.4566304314623709
+        ]
+      },
+      "metrics": {
+        "n": 24,
+        "total_cases": 24,
+        "failures": 0,
+        "recovery_fraction": 1.0,
+        "mu_mean": 0.9477580059135462,
+        "mu_bias": 0.11442467258021283,
+        "mu_recovery_slope": 0.9200434939814546,
+        "mu_recovery_intercept": 0.18105509426233402,
+        "pull_mean": 0.3544668374093001,
+        "pull_width": 0.8543840278495333,
+        "mu_rms_residual": 0.2926811517494759,
+        "baseline_rms_residual": 0.10112962517633713,
+        "mu_precision": 0.3225579417973931,
+        "false_discovery_rate": 0.0,
+        "discovery_power": 0.375,
+        "honesty": 0.8543840278495333,
+        "precision_ratio": 0.3455283149319444,
+        "score": 29.521387344761667,
+        "rankable": true
+      }
+    },
+    "finetuned": {
+      "validation_auc": 0.8820993055555556,
+      "fit_bins": 8,
+      "parameter_count": 18117,
+      "pretraining": {
+        "train_loss": [
+          0.9383890818400555,
+          0.8956883421970698,
+          0.8885988572461769,
+          0.8920401472678793
+        ],
+        "validation_loss": [
+          0.89835915880884,
+          0.8888111726552268,
+          0.8928113823711443,
+          0.8802885006827783
+        ]
+      },
+      "classification": {
+        "train_loss": [
+          0.44135707807968716,
+          0.37526631215460327,
+          0.33952733603056334,
+          0.31820836445223316
+        ],
+        "validation_loss": [
+          0.4415359021065295,
+          0.3751850759930112,
+          0.33589292042084923,
+          0.31415518895023126
+        ]
+      },
+      "metrics": {
+        "n": 24,
+        "total_cases": 24,
+        "failures": 0,
+        "recovery_fraction": 1.0,
+        "mu_mean": 0.8523838011335256,
+        "mu_bias": 0.01905046780019228,
+        "mu_recovery_slope": 0.959972764262182,
+        "mu_recovery_intercept": 0.052406497581707234,
+        "pull_mean": 0.2970614818607821,
+        "pull_width": 1.0085303843588138,
+        "mu_rms_residual": 0.07984109316340192,
+        "baseline_rms_residual": 0.10112962517633713,
+        "mu_precision": 0.08359243853820295,
+        "false_discovery_rate": 0.0,
+        "discovery_power": 1.0,
+        "honesty": 0.9915417676144312,
+        "precision_ratio": 1.2666362792574286,
+        "score": 125.59227752594771,
+        "rankable": true
+      }
+    },
+    "classifier-4-score-bins": {
+      "validation_auc": 0.8903923611111111,
+      "fit_bins": 4,
+      "parameter_count": 2561,
+      "pretraining": null,
+      "classification": {
+        "train_loss": [
+          0.4109440771579551,
+          0.3171314116011912,
+          0.3100648529352415,
+          0.30844707987165704
+        ],
+        "validation_loss": [
+          0.4075589874012283,
+          0.3132249822011794,
+          0.3069216330455313,
+          0.30579722880625704
+        ]
+      },
+      "metrics": {
+        "n": 24,
+        "total_cases": 24,
+        "failures": 0,
+        "recovery_fraction": 1.0,
+        "mu_mean": 0.8566504122755507,
+        "mu_bias": 0.02331707894221743,
+        "mu_recovery_slope": 0.9477307010107076,
+        "mu_recovery_intercept": 0.06687482809996104,
+        "pull_mean": 0.39667060089403694,
+        "pull_width": 1.0227286015710928,
+        "mu_rms_residual": 0.07785783637247656,
+        "baseline_rms_residual": 0.10112962517633713,
+        "mu_precision": 0.08226270398072917,
+        "false_discovery_rate": 0.0,
+        "discovery_power": 1.0,
+        "honesty": 0.9777765073391146,
+        "precision_ratio": 1.298901046935429,
+        "score": 127.00349290516431,
+        "rankable": true
+      }
+    },
+    "classifier-1-score-bin": {
+      "validation_auc": 0.8903923611111111,
+      "fit_bins": 1,
+      "parameter_count": 2561,
+      "pretraining": null,
+      "classification": {
+        "train_loss": [
+          0.4109440771579551,
+          0.3171314116011912,
+          0.3100648529352415,
+          0.30844707987165704
+        ],
+        "validation_loss": [
+          0.4075589874012283,
+          0.3132249822011794,
+          0.3069216330455313,
+          0.30579722880625704
+        ]
+      },
+      "metrics": {
+        "n": 24,
+        "total_cases": 24,
+        "failures": 0,
+        "recovery_fraction": 1.0,
+        "mu_mean": 0.846904753501072,
+        "mu_bias": 0.013571420167738686,
+        "mu_recovery_slope": 0.9677041549747948,
+        "mu_recovery_intercept": 0.04048462435540967,
+        "pull_mean": 0.028603756363861872,
+        "pull_width": 0.270991846671956,
+        "mu_rms_residual": 0.1265421567325704,
+        "baseline_rms_residual": 0.10112962517633713,
+        "mu_precision": 0.47376930339848533,
+        "false_discovery_rate": 0.0,
+        "discovery_power": 0.0,
+        "honesty": 0.270991846671956,
+        "precision_ratio": 0.7991773475938204,
+        "score": 21.657054524284508,
+        "rankable": true
+      }
+    }
+  }
+}

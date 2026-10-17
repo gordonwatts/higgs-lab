@@ -1,0 +1,26 @@
+site_name: "HiggsLab: From Events to Evidence"
+site_description: Build a Higgs-to-WW measurement with machine learning and a statistical fit
+docs_dir: docs
+site_dir: site
+strict: true
+markdown_extensions:
+  - admonition
+extra_css:
+  - assets/leaderboard.css
+nav:
+  - Home: index.md
+  - Student guide:
+      - Quickstart: setup.md
+      - Physics bridge: physics.md
+      - Data and provenance: data.md
+      - Analysis map: analysis.md
+      - Classifier path: classifier.md
+      - MiniHEP encoder: encoder.md
+      - Model comparison: ablation.md
+      - Statistical fit: fit.md
+      - Optional coding agents: agents.md
+      - Submission: submission.md
+      - FAQ: faq.md
+  - Live leaderboard: leaderboard.md
+  - Instructor guide: instructor.md
+  - Attribution: attribution.md

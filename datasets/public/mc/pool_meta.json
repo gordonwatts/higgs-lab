@@ -1,0 +1,26 @@
+{
+  "schema": "dataset-v1",
+  "origin": "synthetic teaching surrogate; not ATLAS data",
+  "generator": "higgslab.data.generate_dataset-v1",
+  "units": "GeV",
+  "lumi_fb": 1000.0,
+  "signal_expected": 350.0,
+  "background_expected": 1600.0,
+  "partitions": {
+    "0": "train",
+    "1": "validation",
+    "2": "templates"
+  },
+  "processes": {
+    "345324": {
+      "name": "toy HWW",
+      "label": 1,
+      "expected_events": 350.0
+    },
+    "363492": {
+      "name": "toy continuum WW",
+      "label": 0,
+      "expected_events": 1600.0
+    }
+  }
+}
