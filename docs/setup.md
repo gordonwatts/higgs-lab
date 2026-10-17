@@ -2,9 +2,20 @@
 
 In about 10–15 minutes, install HiggsLab, run its baseline, inspect a result, and change one small component. The command-line pipeline is the submission source of truth. The optional exploration notebook lives at `notebooks/01-explore.ipynb` for looking at the data and output.
 
-## 1. Install
+## 1. Get your workshop copy
 
-Install Python 3.12 and [`uv`](https://docs.astral.sh/uv/), then clone your workshop repository and enter its folder. In a template checkout, run:
+Start from the published workshop landing page your instructor shared. Open its **Workshop repository** link. On GitHub, use **Fork** to make a copy under your own account, then clone that fork and enter its folder:
+
+```bash
+git clone https://github.com/YOUR-USERNAME/WORKSHOP-REPOSITORY.git
+cd WORKSHOP-REPOSITORY
+```
+
+Replace the placeholders with your GitHub username and the repository name shown on the landing page. Work from this repository's root folder. The fork is your copy for making and pushing changes; the instructor's workshop repository is the source to fork.
+
+The repository link is filled in when an instructor configures and publishes a workshop. If you are reading a local preview or an unconfigured template checkout, its landing page will not show a cohort repository link. Ask your instructor for the published workshop landing-page URL before forking. If you already have a checkout from your instructor, use that checkout and continue below from its root.
+
+Install Python 3.12 and [`uv`](https://docs.astral.sh/uv/), then install the project dependencies:
 
 ```bash
 uv sync --extra ml --extra dev
