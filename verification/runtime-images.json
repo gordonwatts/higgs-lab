@@ -1,0 +1,77 @@
+{
+  "same_runtime": true,
+  "images": [
+    "sha256:31ccba95d71ca0c6a7e871c87825525f29607db24e98d39dc1888a013e330f43",
+    "sha256:7b70f034ec95b304cdf7f37c1d50b1aae42c5d54797d096d0c491cc1a7f592c9"
+  ],
+  "runtime": [
+    {
+      "packages": {
+        "Jinja2": "3.1.6",
+        "MarkupSafe": "3.0.3",
+        "filelock": "3.32.3",
+        "fsspec": "2026.7.0",
+        "mpmath": "1.3.0",
+        "networkx": "3.6.1",
+        "numpy": "2.3.3",
+        "pip": "25.0.1",
+        "scipy": "1.16.2",
+        "setuptools": "78.1.0",
+        "sympy": "1.14.0",
+        "torch": "2.9.0+cpu",
+        "typing_extensions": "4.16.0"
+      },
+      "sources": {
+        "__init__.py": "d7f101cea79d7b03888201fd77787ce0320aa4d14719902e96915e07d98bc459",
+        "__main__.py": "79ee6f134c5c5193377cf9b189cbdcc3e2095e49ba9cec310114441c15a917c4",
+        "check.py": "26d1ccb09049597b70248b035cad142fa8e24ffc4f9d11f14ee6fb5a047149f9",
+        "cli.py": "721b2b9cf63f60fefc0960bf050983daa4e6156201af0a6240ec0e27be633d15",
+        "contract.py": "585f427d32a0f82736e20290f0944d0bfca88d5afe6d315d1fe242588fa3995c",
+        "data.py": "0ecf3a3a764210dbcbe615956270376f41ee7d37272b6dfaa52aa65e7fe644db",
+        "features.py": "a1359752f53fab0af565b5dc9943b0884f5b9120bf4e25c8473fdfad61bf4a1c",
+        "fit.py": "5fc2b90e288a5c7e3ba3272ab7e11259a2dcecdfcd7f81b4257ef53d0ed88783",
+        "instructor.py": "0d666a64e6e50b49a288eb0db74b0550e02eb278138eff27ea589ed54304cf70",
+        "local.py": "54cfa733837923fef874890a6ec4dd370c54a226d9652295a8e150f2166a0a5c",
+        "models.py": "4196d733ad695409d3c7d67bb3f5371236b9464c17ba2581bff3ee3fbb1c7869",
+        "pipeline.py": "a647c89e5caaa64c030408422bbd122e97c2a5cf883e0deef4a5c94364f9b07a",
+        "submission.py": "1734315246677b00f6ccf4935813adba394a659dee3db84ff85b9384e8055263",
+        "templates.py": "d6692b6f696c257d39c723e0c10cc5dcace69432858f2d1797f5a1a1ad6ef664",
+        "training.py": "c43e9522da579dc2b321ed5c2a40b403ae5a0948c251cc6ccae847a66d30dac8"
+      }
+    },
+    {
+      "packages": {
+        "Jinja2": "3.1.6",
+        "MarkupSafe": "3.0.3",
+        "filelock": "3.32.3",
+        "fsspec": "2026.7.0",
+        "mpmath": "1.3.0",
+        "networkx": "3.6.1",
+        "numpy": "2.3.3",
+        "pip": "25.0.1",
+        "scipy": "1.16.2",
+        "setuptools": "78.1.0",
+        "sympy": "1.14.0",
+        "torch": "2.9.0+cpu",
+        "typing_extensions": "4.16.0"
+      },
+      "sources": {
+        "__init__.py": "d7f101cea79d7b03888201fd77787ce0320aa4d14719902e96915e07d98bc459",
+        "__main__.py": "79ee6f134c5c5193377cf9b189cbdcc3e2095e49ba9cec310114441c15a917c4",
+        "check.py": "26d1ccb09049597b70248b035cad142fa8e24ffc4f9d11f14ee6fb5a047149f9",
+        "cli.py": "721b2b9cf63f60fefc0960bf050983daa4e6156201af0a6240ec0e27be633d15",
+        "contract.py": "585f427d32a0f82736e20290f0944d0bfca88d5afe6d315d1fe242588fa3995c",
+        "data.py": "0ecf3a3a764210dbcbe615956270376f41ee7d37272b6dfaa52aa65e7fe644db",
+        "features.py": "a1359752f53fab0af565b5dc9943b0884f5b9120bf4e25c8473fdfad61bf4a1c",
+        "fit.py": "5fc2b90e288a5c7e3ba3272ab7e11259a2dcecdfcd7f81b4257ef53d0ed88783",
+        "instructor.py": "0d666a64e6e50b49a288eb0db74b0550e02eb278138eff27ea589ed54304cf70",
+        "local.py": "54cfa733837923fef874890a6ec4dd370c54a226d9652295a8e150f2166a0a5c",
+        "models.py": "4196d733ad695409d3c7d67bb3f5371236b9464c17ba2581bff3ee3fbb1c7869",
+        "pipeline.py": "a647c89e5caaa64c030408422bbd122e97c2a5cf883e0deef4a5c94364f9b07a",
+        "submission.py": "1734315246677b00f6ccf4935813adba394a659dee3db84ff85b9384e8055263",
+        "templates.py": "d6692b6f696c257d39c723e0c10cc5dcace69432858f2d1797f5a1a1ad6ef664",
+        "training.py": "c43e9522da579dc2b321ed5c2a40b403ae5a0948c251cc6ccae847a66d30dac8"
+      }
+    }
+  ]
+}

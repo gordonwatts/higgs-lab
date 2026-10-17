@@ -41,6 +41,8 @@ def main(argv=None):
     p = sub.add_parser("score-final", help="freshly re-score each latest team commit")
     p.add_argument("--state-dir", type=Path, required=True)
     p.add_argument("--work-dir", type=Path, required=True)
+    p = sub.add_parser("isolation-check", help="build and rehearse the hostile-code Docker sandbox")
+    p.add_argument("--report", type=Path, default=Path("output/isolation-report.json"))
     args = parser.parse_args(argv)
     try:
         if args.command == "parse":
@@ -79,6 +81,12 @@ def main(argv=None):
             print(json.dumps({"teams": len(result), "fresh_final_pass": True}, indent=2))
             if any(item.get("status") == "failed" or item.get("summary", {}).get("n", 1) == 0
                    for item in result):
+                return 2
+        elif args.command == "isolation-check":
+            from .isolation import perform_isolation_check
+            report = perform_isolation_check(args.report)
+            print(json.dumps(report, indent=2, sort_keys=True))
+            if not report["passed"]:
                 return 2
     except (SubmissionError, SandboxError, ValueError, RuntimeError) as exc:
         print(f"evaluator: {exc}", file=sys.stderr)

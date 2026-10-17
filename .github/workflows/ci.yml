@@ -16,3 +16,25 @@ jobs:
       - run: uv run python scripts/check_docs_links.py
       - run: uv run python scripts/check_notebooks.py
       - run: node --test tests/leaderboard.test.cjs
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen --python 3.12
+      - name: Rehearse hostile submissions in real Docker containers
+        run: uv run higgslab instructor isolation-check --report output/isolation-report.json
+      - name: Smoke-test all four container paths
+        run: uv run python scripts/verify_container_paths.py --output output/docker-ci --count 9
+      - name: Save public verification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-verification
+          path: |
+            output/isolation-report.json
+            output/docker-ci/docker-paths-report.json
+          if-no-files-found: ignore

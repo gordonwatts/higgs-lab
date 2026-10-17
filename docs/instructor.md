@@ -59,13 +59,28 @@ Confirm the public sample checksums and metadata, run the baseline, and require 
 
 This is a deployment gate. GitHub warns that privileged `issue_comment` workflows that fetch and execute fork code can expose secrets or write tokens. Keep trusted orchestration separate from untrusted execution, and give the execution environment no privileged credentials. Review [GitHub's Actions security guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target). If isolation cannot be demonstrated, leave hosted scoring disabled and use a controlled local/manual evaluator.
 
-Run the hostile-submission rehearsal on a Linux machine with a running Docker engine:
+Run the hostile-submission rehearsal with a running Linux Docker engine:
 
 ```bash
+docker info
 uv run higgslab instructor isolation-check --report output/isolation-report.json
 ```
 
-The report must say `passed: true` and match the current sandbox implementation. Failure leaves hosted scoring disabled. This tests secret and host-file isolation, read-only source, blocked network, symlink refusal, time and output limits, and successful result collection. It is separate from the ordinary student self-check and must be rerun after changing the sandbox.
+Windows Docker Desktop in Linux-container mode is acceptable when the Docker CLI context can reach the engine; confirm `docker info` succeeds from the same shell used for the check. The passing report must match the current sandbox fingerprint. On 2026-10-17, `output/isolation-report.json` passed all ten hostile checks: no network, host state, or secrets; read-only submission snapshot; root `sitecustomize` not executed; result symlinks rejected; memory, process, runtime, and output/log limits enforced; and valid result collection. Its fingerprint is `6e405e10a07477a3c80883f9e7b47958b4c98a810f8e41eabacf0f55cb9c52b7` and image ID is `sha256:7b70f034ec95b304cdf7f37c1d50b1aae42c5d54797d096d0c491cc1a7f592c9`. A pinned public commit was fetched, executed in the container, and produced a valid `RESULT.json` matching the public baseline.
+
+The isolation rehearsal uses deliberately low limits to probe enforcement: 128 MiB memory, 24 processes, and a one-second timeout. The production runner allows up to 6 GiB, 128 processes, and 600 seconds; it keeps `/output` on a 16 MiB tmpfs and sends stdout/stderr to `/dev/null` with Docker logging disabled. The check confirms the listed hostile cases and these configured limits; it is not proof against every possible container escape or host-kernel vulnerability. Rerun it after changing the sandbox. The controlled local scoring command runs the actual submission through this container and needs no GitHub token:
+
+```bash
+uv run python -m evaluator score-local --submission submission
+```
+
+It currently completes all six public local cases. Before relying on all four inference paths, also run the larger integration harness:
+
+```bash
+uv run python scripts/verify_container_paths.py --output output/docker-live --count 30
+```
+
+This exercises the starter, classifier, frozen encoder, and fine-tuned encoder on the same 30-case synthetic suite and checks deterministic repeated public results. On 2026-10-17, all four paths passed all 30 cases and two exact public-input repeats each; the public inputs remained unchanged. That is 128 successful container analysis runs (120 mixed-suite runs plus 8 public repeats), not 128 hostile checks. The Docker image was rebuilt during this run after a `.dockerignore` improvement; comparison confirmed identical Python source hashes and all installed dependency versions between the images. Students receive no GitHub token; the trusted workflow fetches their pinned public commit and provides no privileged credentials to the container.
 
 ## 4. Rehearse as a student
 

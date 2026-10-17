@@ -1,0 +1,41 @@
+{
+  "checked_at": "2026-10-17T09:52:41Z",
+  "checks": {
+    "docker_image_built": true,
+    "memory_limit_enforced": true,
+    "no_network_or_host_state_or_secrets": true,
+    "output_and_log_limits_enforced": true,
+    "pid_limit_enforced": true,
+    "result_symlinks_rejected": true,
+    "root_sitecustomize_not_executed": true,
+    "runtime_limit_enforced": true,
+    "submission_snapshot_read_only": true,
+    "valid_result_collected": true
+  },
+  "failure_stage": null,
+  "failure_type": null,
+  "fingerprint": "6e405e10a07477a3c80883f9e7b47958b4c98a810f8e41eabacf0f55cb9c52b7",
+  "image": "higgslab-sandbox:local",
+  "image_id": "sha256:7b70f034ec95b304cdf7f37c1d50b1aae42c5d54797d096d0c491cc1a7f592c9",
+  "limits": {
+    "production": {
+      "container_log_driver": "none",
+      "memory": "6g",
+      "output_tmpfs": "16m",
+      "pids": 128,
+      "runtime_seconds": 600,
+      "stdout": "devnull"
+    },
+    "rehearsal": {
+      "container_log_driver": "none",
+      "memory": "128m",
+      "output_tmpfs": "16m",
+      "pids": 24,
+      "stdout": "devnull",
+      "stdout_probe_bytes": 8388608
+    }
+  },
+  "log_handling": "Student stdout/stderr are sent to DEVNULL; the container uses log-driver=none.",
+  "passed": true,
+  "schema_version": 1
+}

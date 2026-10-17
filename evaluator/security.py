@@ -41,6 +41,28 @@ def _git_limits():
     return {"preexec_fn": _git_file_size_limit} if os.name == "posix" else {}
 
 
+def _git_environment() -> dict[str, str]:
+    """Minimal environment for fetching public source commits."""
+    env = {"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_NOSYSTEM": "1",
+           "GIT_TERMINAL_PROMPT": "0", "GIT_LFS_SKIP_SMUDGE": "1"}
+    # Windows git.exe needs OS runtime roots for DNS/TLS; never inherit HOME or tokens.
+    for key in ("SYSTEMROOT", "WINDIR"):
+        if key in os.environ:
+            env[key] = os.environ[key]
+    return env
+
+
+def _docker_client_env() -> dict[str, str]:
+    """Environment for the trusted Docker CLI only; never passed into a container."""
+    keys = {
+        "PATH", "DOCKER_CONFIG", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY",
+        "DOCKER_CERT_PATH", "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+        "LOCALAPPDATA", "SYSTEMROOT", "WINDIR", "PATHEXT", "COMSPEC",
+        "XDG_RUNTIME_DIR", "TMP", "TEMP",
+    }
+    return {key: os.environ[key] for key in keys if key in os.environ}
+
+
 def canonical_repo_url(repo: str) -> str:
     parts = repo.split("/")
     if len(parts) != 2 or not all(re.fullmatch(r"[A-Za-z0-9_.-]+", p) for p in parts):
@@ -67,8 +89,8 @@ def snapshot_commit(repo: str, sha: str, destination: str | Path) -> Path:
         raise SandboxError("Snapshot destination must be empty")
     with tempfile.TemporaryDirectory(prefix="higgslab-fetch-") as work:
         checkout = Path(work) / "repo"
-        safe_env = {"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_NOSYSTEM": "1",
-                    "GIT_TERMINAL_PROMPT": "0", "GIT_LFS_SKIP_SMUDGE": "1"}
+        # Keep the fetch environment free of HOME, GitHub tokens, and the sealed seed.
+        safe_env = _git_environment()
         limits = _git_limits()
         subprocess.run(["git", "init", "--quiet", str(checkout)], check=True, timeout=30, env=safe_env, **limits)
         subprocess.run(["git", "-C", str(checkout), "remote", "add", "origin", url], check=True, timeout=30, env=safe_env, **limits)
@@ -150,7 +172,8 @@ def _copy_safe_tree(source: Path, target: Path) -> None:
 
 
 def run_in_docker(snapshot: str | Path, dataset: str | Path, output: str | Path,
-                  timeout_seconds: int = MAX_RUNTIME_SECONDS) -> None:
+                  timeout_seconds: int = MAX_RUNTIME_SECONDS, *,
+                  memory_limit: str = "6g", pids_limit: int = 128) -> None:
     """Run a student entrypoint with no network, credentials, or writable source."""
     snapshot = Path(snapshot).resolve()
     dataset = Path(dataset).resolve()
@@ -160,6 +183,14 @@ def run_in_docker(snapshot: str | Path, dataset: str | Path, output: str | Path,
         raise SandboxError("Output destination must be a real, empty directory")
     if timeout_seconds < 1 or timeout_seconds > MAX_RUNTIME_SECONDS:
         raise SandboxError("Timeout exceeds the configured maximum")
+    memory = re.fullmatch(r"([0-9]+)([mMgG])", memory_limit)
+    if not memory:
+        raise SandboxError("Invalid container memory limit")
+    memory_bytes = int(memory.group(1)) * (1024 ** (3 if memory.group(2).lower() == "g" else 2))
+    if memory_bytes < 128 * 1024 * 1024 or memory_bytes > 6 * 1024 ** 3:
+        raise SandboxError("Container memory limit is outside the permitted range")
+    if not isinstance(pids_limit, int) or pids_limit < 16 or pids_limit > 128:
+        raise SandboxError("Container PID limit is outside the permitted range")
     runner = snapshot / "run.sh"
     if not runner.is_file() or runner.is_symlink():
         raise SandboxError("Pinned commit must contain submission/run.sh")
@@ -167,14 +198,17 @@ def run_in_docker(snapshot: str | Path, dataset: str | Path, output: str | Path,
     cmd = [
         "docker", "run", "--detach", "--pull=never", "--log-driver=none", "--name", container_name,
         "--network=none", "--read-only", "--cap-drop=ALL",
-        "--security-opt=no-new-privileges", "--pids-limit=128", "--memory=6g",
+        "--security-opt=no-new-privileges", f"--pids-limit={pids_limit}", f"--memory={memory_limit}",
         "--cpus=2", "--user=0:0", "--tmpfs=/tmp:rw,noexec,nosuid,size=512m,mode=1777",
         "--tmpfs=/output:rw,noexec,nosuid,size=16m,uid=65534,gid=65534,mode=755",
         "--mount", f"type=bind,src={snapshot},dst=/submission,readonly",
         "--mount", f"type=bind,src={dataset},dst=/data,readonly",
         "--workdir=/submission", DOCKER_IMAGE, "sleep", "infinity",
     ]
-    clean_env = {"PATH": os.environ.get("PATH", "")}
+    # Docker Desktop may need DOCKER_CONFIG/USERPROFILE/DOCKER_CONTEXT to reach its
+    # daemon. This environment is used only to launch the host Docker CLI; `docker exec`
+    # receives no host environment and the student process runs with the image's defaults.
+    clean_env = _docker_client_env()
     try:
         try:
             started = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -191,16 +225,28 @@ def run_in_docker(snapshot: str | Path, dataset: str | Path, output: str | Path,
                 raise SandboxError(f"Submission exited with status {result.returncode}; output was withheld")
             # Trusted root opens the fixed path without following symlinks, checks the opened
             # inode, then streams at most MAX_RESULT_BYTES to the host. No docker cp TOCTOU.
-            extractor = (
-                "import os,stat,sys; p='/output/RESULT.json'; "
-                "fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW); s=os.fstat(fd); "
-                "ok=stat.S_ISREG(s.st_mode) and s.st_size<=100000; "
-                "sys.exit(3) if not ok else None; "
-                "d=os.read(fd,100001); sys.exit(4) if len(d)>100000 or len(d)!=s.st_size else None; "
-                "sys.stdout.buffer.write(d)"
-            )
+            extractor = """\
+import os, stat, sys
+fd = os.open('/output/RESULT.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+status = os.fstat(fd)
+if not stat.S_ISREG(status.st_mode) or status.st_size > 100000:
+    sys.exit(3)
+chunks = []
+remaining = status.st_size
+while remaining:
+    part = os.read(fd, min(remaining, 65536))
+    if not part:
+        break
+    chunks.append(part)
+    remaining -= len(part)
+data = b''.join(chunks)
+if remaining or len(data) > 100000:
+    sys.exit(4)
+sys.stdout.buffer.write(data)
+"""
             extracted = subprocess.run([
-                "docker", "exec", "--user=0:0", container_name, "python", "-c", extractor,
+                "docker", "exec", "--user=0:0", "--workdir=/", container_name,
+                "/usr/local/bin/python", "-I", "-S", "-c", extractor,
             ], capture_output=True, timeout=15, env=clean_env)
             if extracted.returncode:
                 raise SandboxError("Submission result must be a regular file under 100 kB")

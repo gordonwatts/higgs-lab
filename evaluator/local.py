@@ -65,7 +65,11 @@ def score_local_submission(submission_dir, *, suite_dir=None,
         raise ValueError("Submission path must be a regular directory")
     if len(seeds) != len(mu_values) or not seeds:
         raise ValueError("Local seeds and mu values must be nonempty and equally sized")
-    with tempfile.TemporaryDirectory(prefix="higgslab-local-submission-") as temporary:
+    temporary_root = Path(suite_dir) if suite_dir is not None else None
+    if temporary_root is not None:
+        temporary_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="higgslab-local-submission-",
+                                     dir=temporary_root) as temporary:
         root = Path(temporary)
         snapshot = root / "snapshot"
         snapshot.mkdir()
@@ -74,16 +78,15 @@ def score_local_submission(submission_dir, *, suite_dir=None,
         for index, (seed, mu) in enumerate(zip(seeds, mu_values)):
             case = root / f"case-{index}"
             data, output, baseline_output = case / "data", case / "output", case / "baseline"
-            data.mkdir(parents=True); output.mkdir()
+            data.mkdir(parents=True); output.mkdir(); baseline_output.mkdir()
             truth = generate_dataset(data, seed=int(seed), mu=float(mu), beta=float(beta))
             baseline = run_baseline(data, baseline_output)
-            truths.append(float(truth["mu"]))
-            baselines.append(baseline)
             try:
                 run_in_docker(snapshot, data, output, timeout_seconds=timeout_seconds)
-                results.append(validate_result(output / "RESULT.json"))
-                truths.append(float(truth["mu"]))
+                result = validate_result(output / "RESULT.json")
+                results.append(result)
                 baselines.append(baseline)
+                truths.append(float(truth["mu"]))
             except (SandboxError, OSError, ValueError):
                 continue
         return summarize(results, truths, baseline_results=baselines,

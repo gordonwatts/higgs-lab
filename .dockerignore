@@ -1,0 +1,8 @@
+# Send only the trusted runtime sources and dependency specifications.
+**
+!evaluator/
+!evaluator/Dockerfile
+!evaluator/requirements-sandbox.txt
+!src/
+!src/higgslab/
+!src/higgslab/*.py

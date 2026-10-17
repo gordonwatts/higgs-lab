@@ -7,7 +7,7 @@ import threading
 import pytest
 
 from evaluator.scoring import make_sealed_suite, summarize
-from evaluator.security import SandboxError, _copy_safe_tree, run_in_docker
+from evaluator.security import SandboxError, _copy_safe_tree, _git_environment, run_in_docker
 from evaluator.state import EvaluationStore
 from evaluator.submission import SubmissionError, parse_submission
 
@@ -184,7 +184,7 @@ def test_docker_runner_supplies_confinement_and_collects_regular_result(tmp_path
 
     def fake_run(cmd, **kwargs):
         calls.append((cmd, kwargs))
-        if "python" in cmd:
+        if any("python" in part for part in cmd):
             return subprocess.CompletedProcess(cmd, 0, stdout=valid.encode(), stderr=b"")
         return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
 
@@ -202,9 +202,94 @@ def test_docker_runner_supplies_confinement_and_collects_regular_result(tmp_path
     student_call = calls[1][0]
     assert student_call[0:4] == ["docker", "exec", "--user=65534:65534", "--workdir=/submission"]
     assert student_call[-4:] == ["bash", "/submission/run.sh", "/data", "/output"]
-    assert calls[2][0][0:3] == ["docker", "exec", "--user=0:0"]
+    extractor_call = calls[2][0]
+    assert extractor_call[0:4] == ["docker", "exec", "--user=0:0", "--workdir=/"]
+    assert extractor_call[4].startswith("higgslab-")
+    assert extractor_call[5:7] == ["/usr/local/bin/python", "-I"]
+    assert "-S" in extractor_call and "O_NOFOLLOW" in extractor_call[-1] and "O_NONBLOCK" in extractor_call[-1]
     assert calls[-1][0][1:3] == ["rm", "--force"]
     assert (output / "RESULT.json").read_text() == valid
+    assert "DOCKER_CONTEXT" not in run_kwargs["env"] or run_kwargs["env"]["DOCKER_CONTEXT"] == "desktop-linux"
+    assert "HIGGSLAB_ISOLATION_SENTINEL" not in run_kwargs["env"]
+    assert all("SEALED_SEED" not in call_kwargs["env"] for _, call_kwargs in calls)
+
+
+def test_docker_client_environment_is_allowlisted_but_keeps_desktop_context(monkeypatch):
+    from evaluator.security import _docker_client_env
+    monkeypatch.setenv("PATH", "C:\\safe-bin")
+    monkeypatch.setenv("DOCKER_CONTEXT", "desktop-linux")
+    monkeypatch.setenv("DOCKER_CONFIG", "C:\\Users\\example\\.docker")
+    monkeypatch.setenv("USERPROFILE", "C:\\Users\\example")
+    monkeypatch.setenv("SEALED_SEED", "must-not-leak")
+    monkeypatch.setenv("HIGGSLAB_ISOLATION_SENTINEL", "must-not-leak")
+    env = _docker_client_env()
+    assert env["PATH"] == "C:\\safe-bin"
+    assert env["DOCKER_CONTEXT"] == "desktop-linux"
+    assert env["DOCKER_CONFIG"] == "C:\\Users\\example\\.docker"
+    assert env["USERPROFILE"] == "C:\\Users\\example"
+    assert "SEALED_SEED" not in env and "HIGGSLAB_ISOLATION_SENTINEL" not in env
+
+
+def test_git_fetch_environment_keeps_windows_runtime_without_credentials(monkeypatch):
+    monkeypatch.setenv("PATH", "C:\\safe-bin")
+    monkeypatch.setenv("SYSTEMROOT", "C:\\Windows")
+    monkeypatch.setenv("WINDIR", "C:\\Windows")
+    monkeypatch.setenv("GITHUB_TOKEN", "must-not-leak")
+    monkeypatch.setenv("SEALED_SEED", "must-not-leak")
+    monkeypatch.setenv("HOME", "C:\\Users\\instructor")
+    env = _git_environment()
+    assert env["PATH"] == "C:\\safe-bin"
+    assert env["SYSTEMROOT"] == env["WINDIR"] == "C:\\Windows"
+    assert env["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert "GITHUB_TOKEN" not in env and "SEALED_SEED" not in env and "HOME" not in env
+
+
+def test_local_submission_keeps_truth_and_baseline_aligned_after_failures(tmp_path, monkeypatch):
+    import evaluator.local as local
+    import higgslab.contract
+    import higgslab.data
+    import higgslab.pipeline
+
+    monkeypatch.setattr(higgslab.data, "generate_dataset",
+                        lambda path, seed, mu, beta: {"mu": mu})
+    monkeypatch.setattr(higgslab.pipeline, "run",
+                        lambda data, output: result(99.0))
+    monkeypatch.setattr(higgslab.contract, "validate_result", lambda path: result(1.1))
+    calls = iter((SandboxError("case failed"), None, None))
+
+    def fake_docker(snapshot, data, output, timeout_seconds):
+        outcome = next(calls)
+        if outcome:
+            raise outcome
+        (Path(output) / "RESULT.json").write_text("{}", encoding="utf-8")
+
+    observed = {}
+
+    def capture(results, truths, **kwargs):
+        observed.update(results=results, truths=truths, **kwargs)
+        return {"captured": True}
+
+    monkeypatch.setattr(local, "run_in_docker", fake_docker)
+    monkeypatch.setattr(local, "summarize", capture)
+    submission = tmp_path / "submission"
+    submission.mkdir()
+    scored = local.score_local_submission(
+        submission, suite_dir=tmp_path,
+        seeds=(1, 2, 3), mu_values=(0.5, 1.0, 1.5), timeout_seconds=5,
+    )
+    assert scored == {"captured": True}
+    assert observed["truths"] == [1.0, 1.5]
+    assert len(observed["results"]) == 2
+    assert len(observed["baseline_results"]) == 2
+    assert observed["total_cases"] == 3
+
+
+def test_isolation_runner_writes_linux_line_endings(tmp_path):
+    from evaluator.isolation import _runner
+    _runner(tmp_path, "echo ready")
+    payload = (tmp_path / "run.sh").read_bytes()
+    assert b"\r\n" not in payload
+    assert payload.endswith(b"echo ready\n")
 
 
 def test_docker_rejects_symlink_result_and_unavailable_docker(tmp_path, monkeypatch):
@@ -212,7 +297,7 @@ def test_docker_rejects_symlink_result_and_unavailable_docker(tmp_path, monkeypa
     snapshot.mkdir(); dataset.mkdir(); output.mkdir()
     (snapshot / "run.sh").write_text("#!/bin/bash\n")
     def symlink_result(cmd, **kwargs):
-        if "python" in cmd:
+        if any("python" in part for part in cmd):
             return subprocess.CompletedProcess(cmd, 3)
         return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
     monkeypatch.setattr("evaluator.security.subprocess.run", symlink_result)
