@@ -41,7 +41,7 @@ function makeDocument(scriptUrl = "https://example.test/workshop/assets/leaderbo
   };
 }
 
-function runPage({ data, noDom = false } = {}) {
+function runPage({ data, noDom = false, fetchResponse } = {}) {
   const { document, elements } = makeDocument();
   let fetchCalls = 0;
   const requests = [];
@@ -56,6 +56,7 @@ function runPage({ data, noDom = false } = {}) {
     fetch: async (url, options) => {
       fetchCalls++;
       requests.push({ url: new URL(url), options });
+      if (fetchResponse) return fetchResponse(fetchCalls);
       return { ok: true, json: async () => data };
     },
   };
@@ -128,4 +129,47 @@ test("shared asset exits harmlessly when the page has no leaderboard", () => {
     Node: MockNode,
     URL,
   }, { filename: "leaderboard.js" }));
+});
+
+test("explains a loaded empty student state and links within the workshop site", async () => {
+  const page = runPage({ data: { baseline: [{ team: "Baseline", result: {} }], latest: [], history: [] } });
+  assert.equal(page.elements["leaderboard-latest"].children.length, 0);
+  await new Promise(setImmediate);
+  const message = page.elements["leaderboard-latest"].children[1];
+  assert.match(flattenText(message), /expected before the workshop/);
+  assert.match(flattenText(message), /synthetic teaching data/);
+  assert.equal(message.children[0].href, "https://example.test/workshop/ablation/");
+});
+
+test("hides the empty-state explanation during refresh and after a fetch failure", async () => {
+  let finish;
+  const page = runPage({ fetchResponse: async (calls) => {
+    if (calls === 1) return { ok: true, json: async () => ({ latest: [], baseline: [], history: [] }) };
+    return new Promise((resolve) => { finish = resolve; });
+  } });
+  await new Promise(setImmediate);
+  const message = page.elements["leaderboard-latest"].children[1];
+  const refreshing = page.elements["leaderboard-refresh"].listeners.click();
+  assert.equal(message.hidden, true);
+  finish({ ok: false, status: 503 });
+  await refreshing;
+  assert.match(page.elements["leaderboard-status"].textContent, /Could not load/);
+  assert.equal(message.hidden, true);
+});
+
+test("removes the empty-state explanation when a student attempt arrives", async () => {
+  const data = { latest: [], baseline: [], history: [] };
+  const page = runPage({ data });
+  await new Promise(setImmediate);
+  data.latest.push({ team: "First student", status: "failed" });
+  await page.elements["leaderboard-refresh"].listeners.click();
+  assert.equal(page.elements["leaderboard-latest"].children.length, 1);
+  assert.doesNotMatch(flattenText(page.elements["leaderboard-latest"]), /No student submissions/);
+});
+
+test("does not mistake a failed initial fetch for an empty workshop", async () => {
+  const page = runPage({ fetchResponse: async () => ({ ok: false, status: 404 }) });
+  await new Promise(setImmediate);
+  assert.equal(page.elements["leaderboard-latest"].children.length, 0);
+  assert.match(page.elements["leaderboard-status"].textContent, /Could not load/);
 });

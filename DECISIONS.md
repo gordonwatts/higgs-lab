@@ -1,5 +1,7 @@
 # Implementation decision log
 
+Student workspace decision (2026-10-18, issue #7): retain one full workshop fork and provide a focused student editing guide. The library, exact dependency lock, public data, contracts, provenance, and licenses remain versioned in one source tree. A generated starter is deferred until it can carry a canonical-source/runtime/data manifest and pass fresh-copy and hosted rehearsals. The local clone-to-pinned-export regression checks the editing surface and local execution; it does not claim a configured hosted submission has been posted or scored.
+
 Decisions made during implementation on 2026-10-16 (America/Los_Angeles).
 
 1. **Single runtime:** Python 3.12 with NumPy/SciPy for fitting and CPU PyTorch for both ML paths. Exact direct dependencies and the resolved environment are committed. JAX is historical inspiration, not a second required environment.

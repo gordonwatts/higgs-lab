@@ -4,6 +4,8 @@ Submit a pinned commit from a public fork under your own GitHub user account so 
 
 ## 1. Make and check a commit
 
+Use the full workshop fork described in the [student workspace guide](student-workspace.md). Keep your executable changes and required helpers inside `submission/`: the evaluator does not fetch edits to the shared library or other folders in your fork.
+
 Fork the workshop repository, clone your fork, and complete the quickstart. Make one focused change, then run:
 
 ```bash
