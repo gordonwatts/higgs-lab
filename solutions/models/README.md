@@ -18,3 +18,12 @@ uv run python -m evaluator score-local
 The encoder models are about 375 kB each and the direct classifier is about
 53 kB. They contain only exported weights and train-only preprocessing
 statistics; inference does not need the original training pool.
+
+`encoder.json` is the separate instructor reconstruction checkpoint for the
+[low-label exercise](../../docs/low-label.md), with versioned architecture and
+preprocessing metadata. Reproduce it with `uv run higgslab pretrain datasets/public
+output/encoder.json --epochs 4`. `low-label-reference.json` records the optional
+four-arm recipe's six-case reference results, label indices, checkpoint hash,
+and separate pretraining/adaptation compute. It is generated with
+`uv run python solutions/run_low_label.py --transformer-control`; the recipe
+writes new reports into its output directory.

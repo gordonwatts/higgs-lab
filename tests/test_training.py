@@ -7,6 +7,7 @@ import torch
 from higgslab.models import MiniHEP, MiniHEPClassifier
 from higgslab.training import _fit_classifier
 from higgslab.training import score, train
+from higgslab.training import select_labeled_subset, pretrain_checkpoint, load_encoder_checkpoint
 
 
 def _synthetic_pool(path):
@@ -104,3 +105,87 @@ def test_masked_pretraining_is_independent_of_class_labels(tmp_path):
     first_history = json.loads(first_model.read_text())["pretraining"]
     second_history = json.loads(second_model.read_text())["pretraining"]
     assert first_history == second_history
+
+
+def test_label_budget_is_nested_stratified_and_ignores_heldout_labels(tmp_path):
+    pool = _synthetic_pool(tmp_path / "dataset")
+    small = select_labeled_subset(pool, count=4, seed=7)
+    large = select_labeled_subset(pool, count=10, seed=7)
+    assert len(small) == 4 and len(large) == 10
+    assert set(small).issubset(large)
+    assert (pool["partition"][large] == 0).all()
+    assert np.bincount(pool["label"][small]).tolist() == [2, 2]
+    pool["label"][pool["partition"] != 0] = 99
+    np.testing.assert_array_equal(small, select_labeled_subset(pool, count=4, seed=7))
+    assert not np.array_equal(small, select_labeled_subset(pool, count=4, seed=8))
+    with pytest.raises(ValueError, match="label count"):
+        select_labeled_subset(pool, count=21)
+
+
+def test_checkpoint_roundtrip_and_no_heldout_preprocessing_fit(tmp_path):
+    dataset = tmp_path / "dataset"
+    pool = _synthetic_pool(dataset)
+    first = pretrain_checkpoint(dataset, tmp_path / "first.json", epochs=1)
+    encoder, payload = load_encoder_checkpoint(first)
+    assert payload["compute"]["events"] == 20
+    assert payload["compute"]["optimizer_steps"] == 1
+    from higgslab.models import state_from_json
+    restored = MiniHEP(**payload["architecture"])
+    state_from_json(restored, payload["weights"])
+    restored.eval()
+    x, valid = torch.randn(3, 5, 4), torch.ones(3, 5, dtype=torch.bool)
+    with torch.no_grad():
+        torch.testing.assert_close(encoder.encode_events(x, valid), restored.encode_events(x, valid), rtol=0, atol=0)
+    # Reconstruction and scaling must not depend on labels or heldout inputs.
+    pool["label"] = 1 - pool["label"]
+    pool["process"] = np.where(pool["label"] == 1, 345324, 363492)
+    pool["met_et"][pool["partition"] != 0] *= 100
+    np.savez(dataset / "mc/pool.npz", **pool)
+    second = pretrain_checkpoint(dataset, tmp_path / "second.json", epochs=1)
+    _, changed = load_encoder_checkpoint(second)
+    for key in ("weights", "scaler", "training_fingerprint", "reconstruction"):
+        assert payload[key] == changed[key]
+
+
+def test_checkpoint_adaptation_shared_subset_and_scratch_skips_pretraining(tmp_path, monkeypatch):
+    import higgslab.training as training
+    dataset = tmp_path / "dataset"
+    _synthetic_pool(dataset)
+    checkpoint = pretrain_checkpoint(dataset, tmp_path / "encoder.json", epochs=1)
+    encoder, original = load_encoder_checkpoint(checkpoint)
+    def fail_pretrain(*args, **kwargs):
+        pytest.fail("loaded-checkpoint and scratch adaptation must skip pretraining")
+    monkeypatch.setattr(training, "_pretrain", fail_pretrain)
+    payloads = {}
+    for mode in ("classifier", "frozen", "scratch", "finetuned"):
+        path = train(dataset, tmp_path / f"{mode}.json", mode, epochs=1,
+                     label_count=4, subset_seed=9, checkpoint=checkpoint if mode != "classifier" else None)
+        payloads[mode] = json.loads(path.read_text())
+    assert all(value["label_budget"] == payloads["classifier"]["label_budget"] for value in payloads.values())
+    for mode in ("frozen", "scratch", "finetuned"):
+        assert payloads[mode]["scaler"] == original["scaler"]
+        assert payloads[mode]["pretraining"] == {"train_loss": [], "validation_loss": []}
+    assert payloads["scratch"]["checkpoint"]["weights_loaded"] is False
+    assert payloads["finetuned"]["checkpoint"]["weights_loaded"] is True
+    assert payloads["scratch"]["architecture"] == payloads["finetuned"]["architecture"]
+    assert all(payloads["frozen"]["weights"][f"encoder.{key}"] == value for key, value in original["weights"].items())
+
+
+def test_checkpoint_rejects_invalid_metadata_and_nonfinite_weights(tmp_path):
+    dataset = tmp_path / "dataset"
+    _synthetic_pool(dataset)
+    checkpoint = pretrain_checkpoint(dataset, tmp_path / "encoder.json", epochs=1)
+    valid = json.loads(checkpoint.read_text())
+    for field, replacement, message in (
+            ("architecture", {**valid["architecture"], "heads": 0}, "architecture"),
+            ("architecture", {**valid["architecture"], "dropout": float("nan")}, "architecture"),
+            ("scaler", {**valid["scaler"], "scale": [0, 1, 1, 1]}, "preprocessing"),
+            ("weights", {**valid["weights"], "mask_embedding": [float("inf")] * 32}, "finite")):
+        checkpoint.write_text(json.dumps({**valid, field: replacement}))
+        with pytest.raises(ValueError, match=message):
+            load_encoder_checkpoint(checkpoint)
+    with pytest.raises(ValueError, match="transformer modes"):
+        train(dataset, tmp_path / "bad.json", "classifier", checkpoint=checkpoint)
+    checkpoint.write_text("not JSON")
+    with pytest.raises(ValueError, match="JSON"):
+        load_encoder_checkpoint(checkpoint)

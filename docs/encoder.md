@@ -25,3 +25,9 @@ Compare engineered features, frozen MiniHEP embeddings, and fine-tuned MiniHEP u
 Run the three modes with identical settings. Compare the diagnostic loss and any validation discrimination metrics, then score the same generated suite. If MiniHEP does not improve μ precision or calibration, explain plausible reasons: small data volume, short pretraining, objective mismatch, feature representation, or fit limitations. A well-supported negative result is a successful scientific outcome.
 
 See the [physics bridge](physics.md) for four-vector and MET context and the [statistical fit](fit.md) for the common endpoint.
+
+## Short low-label exercise
+
+Load an instructor checkpoint and compare a frozen encoder with the feature
+classifier using the same 10% labeled subset in the [low-label exercise](low-label.md).
+A matched scratch/fine-tuned transformer comparison is an optional extension.
