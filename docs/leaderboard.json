@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-10-17T01:45:32.678241+00:00",
+  "score_definition": "Public local reference only: 24 generated synthetic cases, seed start 710; not the hosted sealed suite. Score-v1: 100 times baseline RMS / submitted RMS times min(pull width, 1/pull width) times recovery, subject to gates. Hosted scoring replaces this preview.",
+  "baseline": [
+    {
+      "team": "Local template baseline (synthetic reference)",
+      "status": "baseline",
+      "timestamp": "2026-10-17T01:45:32.678241+00:00",
+      "result": {
+        "n": 24,
+        "total_cases": 24,
+        "failures": 0,
+        "recovery_fraction": 1.0,
+        "mu_mean": 0.8545880938808222,
+        "mu_bias": 0.021254760547488906,
+        "mu_recovery_slope": 0.9195101278338877,
+        "mu_recovery_intercept": 0.08832965401924908,
+        "pull_mean": 0.2826023743593121,
+        "pull_width": 1.0330774347081777,
+        "mu_rms_residual": 0.10112962517633713,
+        "baseline_rms_residual": 0.10112962517633713,
+        "mu_precision": 0.10491498014438912,
+        "false_discovery_rate": 0.0,
+        "discovery_power": 1.0,
+        "honesty": 0.9679816501678585,
+        "precision_ratio": 1.0,
+        "score": 96.79816501678586,
+        "rankable": true
+      }
+    }
+  ],
+  "latest": [],
+  "history": []
+}

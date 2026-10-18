@@ -1,0 +1,107 @@
+name: Build documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "README.md"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "workshop.toml"
+      - "scripts/site_config.py"
+      - "scripts/check_docs_links.py"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "README.md"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "workshop.toml"
+      - "scripts/site_config.py"
+      - "scripts/check_docs_links.py"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish the site to Pages (instructor setup only)"
+        type: boolean
+        required: true
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install documentation dependencies
+        run: uv sync --frozen --extra dev
+      - name: Build site and check Markdown links
+        run: uv run mkdocs build --strict
+      - name: Add repository and submissions links to the site
+        env:
+          EVENT_TITLE: ${{ vars.EVENT_TITLE }}
+          WORKSHOP_NAME: ${{ vars.WORKSHOP_NAME }}
+          SUBMISSIONS_ISSUE: ${{ vars.SUBMISSIONS_ISSUE }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          PAGES_URL=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.html_url // empty' 2>/dev/null) || PAGES_URL=""
+          export PAGES_URL
+          python scripts/site_config.py --output site
+      - name: Upload built documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: higgslab-docs-site
+          path: site/
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && vars.WORKSHOP_CONFIGURED == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download built documentation
+        uses: actions/download-artifact@v4
+        with:
+          name: higgslab-docs-site
+          path: site/
+      - name: Restore the latest published leaderboard if one exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -eu
+          page_url=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.html_url // empty' 2>/dev/null) || page_url=""
+          if [ -n "$page_url" ]; then
+            curl --fail --silent --show-error --max-time 20 \
+              "${page_url%/}/leaderboard.json?refresh=$(date +%s)" \
+              --output site/leaderboard.json || true
+          fi
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

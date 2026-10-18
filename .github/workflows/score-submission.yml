@@ -1,0 +1,227 @@
+name: Score workshop submission
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Run a fresh final scoring pass after closing submissions
+        type: choice
+        options: [final-score]
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: higgs-lab-evaluator-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  score:
+    if: >-
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request == null &&
+      vars.WORKSHOP_ENABLED == 'true' && vars.SUBMISSIONS_OPEN == 'true' &&
+      github.event.issue.number == fromJSON(vars.SUBMISSIONS_ISSUE)) ||
+      (github.event_name == 'workflow_dispatch' && inputs.operation == 'final-score' &&
+      vars.WORKSHOP_CONFIGURED == 'true' && vars.SUBMISSIONS_OPEN == 'false' &&
+      vars.WORKSHOP_ENABLED == 'false' && vars.FINAL_SCORE_REQUESTED_AT != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out trusted workshop code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install trusted evaluator
+        run: python -m pip install . 'mkdocs==1.6.1'
+
+      - name: Restore trusted evaluator history
+        uses: actions/cache/restore@v4
+        with:
+          path: .evaluator-state
+          key: evaluator-state-${{ github.run_id }}
+          restore-keys: evaluator-state-
+
+      - name: Validate submission line
+        id: submission
+        if: github.event_name == 'issue_comment'
+        continue-on-error: true
+        env:
+          SUBMISSIONS_ISSUE: ${{ vars.SUBMISSIONS_ISSUE }}
+          SUBMISSION_DEADLINE: ${{ vars.DEADLINE }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python -m evaluator.github_event
+        shell: pwsh
+
+      - name: Explain malformed submission
+        if: github.event_name == 'issue_comment' && steps.submission.outputs.valid == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ vars.SUBMISSIONS_ISSUE }}
+        run: >-
+          gh issue comment "$env:ISSUE_NUMBER" --repo "$env:GH_REPO" --body 'Submission not queued. Use `team: https://github.com/OWNER/REPO @ FULL_SHA`. The repository owner must post the first submission and only that account can resubmit for that repository.'
+        shell: pwsh
+
+      - name: Record malformed submission status
+        if: github.event_name == 'issue_comment' && steps.submission.outputs.valid == 'false'
+        env:
+          TEAM: ${{ steps.submission.outputs.team }}
+          SEALED_SEED: ${{ secrets.SEALED_SEED }}
+        run: python -m evaluator record-invalid --team "$env:TEAM" --state-dir .evaluator-state
+        shell: pwsh
+
+      - name: Build the restricted runtime image
+        if: (github.event_name == 'issue_comment' && steps.submission.outputs.valid == 'true') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'final-score')
+        run: docker build --tag higgslab-sandbox:local --file evaluator/Dockerfile .
+
+      - name: Start scoring
+        if: steps.submission.outputs.valid == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ vars.SUBMISSIONS_ISSUE }}
+          TEAM: ${{ steps.submission.outputs.team }}
+          REPOSITORY: ${{ steps.submission.outputs.repository }}
+          COMMIT_SHA: ${{ steps.submission.outputs.sha }}
+        run: gh issue comment "$env:ISSUE_NUMBER" --repo "$env:GH_REPO" --body "Queued $env:TEAM at $env:REPOSITORY @ $env:COMMIT_SHA for sealed evaluation."
+        shell: pwsh
+
+      - name: Score pinned commit in isolated containers
+        id: score
+        if: steps.submission.outputs.valid == 'true'
+        env:
+          SEALED_SEED: ${{ secrets.SEALED_SEED }}
+          TEAM: ${{ steps.submission.outputs.team }}
+          REPOSITORY: ${{ steps.submission.outputs.repository }}
+          COMMIT_SHA: ${{ steps.submission.outputs.sha }}
+        run: >-
+          python -m evaluator score-hosted --team "$env:TEAM"
+          --repository "$env:REPOSITORY" --sha "$env:COMMIT_SHA"
+          --state-dir .evaluator-state --work-dir "$env:RUNNER_TEMP"
+        shell: pwsh
+
+      - name: Freshly score each latest team commit
+        id: final_score
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'final-score'
+        env:
+          SEALED_SEED: ${{ secrets.SEALED_SEED }}
+        run: python -m evaluator score-final --state-dir .evaluator-state --work-dir "$env:RUNNER_TEMP"
+        shell: pwsh
+
+      - name: Publish evaluation data artifact
+        if: always() && ((github.event_name == 'issue_comment' && steps.submission.conclusion == 'success') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'final-score' && steps.final_score.outcome != 'skipped'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: leaderboard-${{ github.run_id }}
+          path: .evaluator-state/leaderboard.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Save trusted evaluator history
+        if: always() && ((github.event_name == 'issue_comment' && steps.submission.conclusion == 'success') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'final-score' && steps.final_score.outcome != 'skipped'))
+        uses: actions/cache/save@v4
+        with:
+          path: .evaluator-state
+          key: evaluator-state-${{ github.run_id }}
+
+      - name: Report scoring failure
+        if: always() && steps.submission.outputs.valid == 'true' && steps.score.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ vars.SUBMISSIONS_ISSUE }}
+          TEAM: ${{ steps.submission.outputs.team }}
+        run: gh issue comment "$env:ISSUE_NUMBER" --repo "$env:GH_REPO" --body "Scoring failed for $env:TEAM. The submission remains recorded with a failed status; check the starter contract and resubmit a commit."
+        shell: pwsh
+
+      - name: Report scoring completion
+        if: steps.score.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ vars.SUBMISSIONS_ISSUE }}
+          TEAM: ${{ steps.submission.outputs.team }}
+        run: gh issue comment "$env:ISSUE_NUMBER" --repo "$env:GH_REPO" --body "Scoring completed for $env:TEAM. Aggregate results are available in the leaderboard data artifact."
+        shell: pwsh
+
+  publish:
+    needs: score
+    if: always() && needs.score.result != 'cancelled' && vars.WORKSHOP_CONFIGURED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check out trusted documentation source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Download leaderboard data
+        id: data
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: leaderboard-${{ github.run_id }}
+          path: docs
+
+      - name: Stop if there is no evaluator data
+        if: steps.data.outcome != 'success'
+        run: exit 0
+
+      - name: Set up Python
+        if: steps.data.outcome == 'success'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build documentation site
+        if: steps.data.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_TITLE: ${{ vars.EVENT_TITLE }}
+          WORKSHOP_NAME: ${{ vars.WORKSHOP_NAME }}
+          SUBMISSIONS_ISSUE: ${{ vars.SUBMISSIONS_ISSUE }}
+        run: |
+          python -m pip install 'mkdocs==1.6.1'
+          python -m mkdocs build --strict
+          PAGES_URL=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.html_url // empty' 2>/dev/null) || PAGES_URL=""
+          export PAGES_URL
+          python scripts/site_config.py --output site
+        shell: bash
+
+      - name: Configure Pages
+        if: steps.data.outcome == 'success'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: steps.data.outcome == 'success'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy Pages
+        if: steps.data.outcome == 'success'
+        id: deploy
+        uses: actions/deploy-pages@v4

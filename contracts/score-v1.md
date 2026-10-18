@@ -1,0 +1,7 @@
+# score-v1
+
+Compare on a deterministic suite with varying planted mu and background normalization, mass fixed 125 GeV. Publish recovery fraction and failures, bias (mean residual), slope recovered versus planted mu, pull mean and sample standard deviation, RMS residual (smaller is better), typical quoted uncertainty, null false-discovery fraction and strong-signal discovery power. Pull = `(fitted mu - truth)/total uncertainty`.
+
+Hosted ranking uses `100 × precision × honesty × recovery`, where precision is baseline RMS / submitted RMS and honesty is `min(pull_width,1/pull_width)`. A constant estimator, undefined calibration, excessive false discoveries or insufficient valid cases cannot receive a competitive score. Read evaluator/scoring.py for mechanical gates. Local higgslab score-local reports diagnostics without ranking. All positive injected cases enter local diagnostics, an intentional change from the old benchmark truth-significance threshold. Null cases assess false discoveries. A small suite cannot establish a rare false-discovery rate.
+
+The background constraint, fixed finite simulation and omitted detector nuisance model limit calibration. Inspect the diagnostics before trusting a higher score. A higher AUC may lose measurement information through binning or overtraining and need not improve mu. Public local suites can show per-case truths; sealed publishing may show only aggregate metrics and exact submitted commit links. Never publish seed, input generation state, truth, individual results or student stdout/stderr from a sealed run.

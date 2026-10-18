@@ -1,0 +1,15 @@
+.venv/
+.python/
+.uv-cache/
+.tmp/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.pytest-tmp/
+model-exports/
+output/
+site/
+.ipynb_checkpoints/
+.coverage
+.workshop-state/
+*.log

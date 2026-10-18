@@ -1,0 +1,15 @@
+# Attribution and source notes
+
+HiggsLab's co-creators are **[Gordon Watts](https://github.com/gordonwatts) and [Andrzej Novak](https://github.com/andrzejnovak)**. The project grew from their collaboration around the [2026 HSF-India Delhi ML/AI session](https://indico.cern.ch/event/1714663/timetable/#sc-15-2-mlai). The co-creator credit also appears on the README and the [landing page](index.md).
+
+| Source | Contribution acknowledged | Reuse and licensing note |
+| --- | --- | --- |
+| [Delhi ML/AI session](https://indico.cern.ch/event/1714663/timetable/#sc-15-2-mlai) and [work plan](https://docs.google.com/document/d/1VFZyrQ0SKJltVIGf49d8QOXkFlR28G58TUaqKQ0Pch0/edit) | Workshop sequence connecting physics, supervised learning, event representation, coding agents, and a shared measurement. | Cited as the source of teaching context; check original terms before reproducing material. |
+| [Gordon Watts's course repository](https://github.com/gordonwatts/courses-hsf-india-October2026) | Supervised exercise concepts and ROOT-based course context; inspected at `86fb86c62108cae88a92f75b0f7268a9130a0aec`. | HiggsLab uses an independent implementation. Confirm file-level license and authorship before porting original files. |
+| [MiniHEP course branch](https://github.com/gordonwatts/courses-hsf-india-October2026/tree/76cfa28c433d1f3e9ac95c0102974a55b37de54d/minihep_tutorial) | Five-token masked four-vector encoder teaching prototype; source commit `76cfa28c433d1f3e9ac95c0102974a55b37de54d`. | The branch is separate from course `main`. Confirm file-level license and attribution before porting original source files. HiggsLab docs explain the concept; that explanation alone does not grant a source license. |
+| [Andrzej Novak's H→WW benchmark kit](https://github.com/andrzejnovak/hsf-india-hww) | Published dataset/evaluation interfaces, run/result contract, suite scoring, fit examples, and leaderboard concepts; inspected at `f6e47e6ce32bc9e40162b7238ff1933c5d182e2a`. | HiggsLab uses an independent implementation and cites the interface. No code is copied without a verified license or permission. |
+| [Andrzej's talk](https://andrzejnovak.github.io/talks/2026-10-13-hsf-india/index.html?profile=hack) | Analysis-chain motivation and H→WW context. | Linked as an instructor reference; cite any future reuse of slides or figures individually. |
+
+HiggsLab's current generated dataset is independently generated synthetic teaching data. It is not a conversion of the course ROOT file or the benchmark's ATLAS Open Data. The repository's license applies only to files explicitly marked as HiggsLab material; upstream licenses and data terms continue to govern their own files. Preserve copyright headers and add source revision, author, and license information to any approved future migration.
+
+Before publishing a ROOT-derived dataset, record the exact input source, source commit or release, checksum, preparation script, units, selections, labels, weights, process normalization, redistribution terms, and derived-data license. See [data and provenance](data.md).

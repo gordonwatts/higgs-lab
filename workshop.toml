@@ -1,0 +1,10 @@
+[workshop]
+name = "HiggsLab Workshop"
+template_repository = "gordonwatts/higgs-lab"
+source_mode = "template"
+event_title = "HiggsLab: From Events to Evidence"
+start_date = ""
+end_date = ""
+deadline = ""
+contact = ""
+submissions_open = false
