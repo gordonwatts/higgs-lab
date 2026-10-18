@@ -21,10 +21,12 @@
     return String(value);
   };
   function render(data) {
+    const p = data.provenance || {};
+    const suiteSize = p.suite_size ?? "unknown";
     const table = document.createElement("table");
     table.className = "leaderboard-table";
     const caption = document.createElement("caption");
-    caption.textContent = "Model and fit ablation on a 12-case synthetic suite";
+    caption.textContent = `Model and fit ablation on a ${suiteSize}-case synthetic suite`;
     table.append(caption);
     const thead = document.createElement("thead");
     const header = document.createElement("tr");
@@ -47,8 +49,7 @@
     });
     table.append(thead, tbody);
     root.replaceChildren(table);
-    const p = data.provenance || {};
-    status.textContent = `Loaded ${Object.keys(data.models || {}).length} paths; ${p.suite_size || "unknown"}-case suite, ${p.epochs || "unknown"} training epochs; ${p.dataset_origin || "origin unspecified"}.`;
+    status.textContent = `Loaded ${Object.keys(data.models || {}).length} paths; ${suiteSize}-case suite, ${p.epochs || "unknown"} training epochs; ${p.dataset_origin || "origin unspecified"}.`;
   }
   fetch(dataUrl, { cache: "no-cache" }).then((response) => {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
