@@ -16,6 +16,8 @@ nav:
       - Analysis map: analysis.md
       - Classifier path: classifier.md
       - MiniHEP encoder: encoder.md
+      - Optional MiniHEP concepts: minihep-concepts.md
+      - Optional generative modeling: generative-modeling.md
       - Model comparison: ablation.md
       - Statistical fit: fit.md
       - Optional coding agents: agents.md

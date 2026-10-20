@@ -11,11 +11,27 @@ An **event** is one recorded or simulated collision candidate. A **signal** even
 !!! warning "Simulation and weights"
     In a real analysis, simulated events are weighted to represent expected yields for a stated integrated luminosity, selection, and physics model. Weights are not interchangeable with event counts. HiggsLab's current data use simplified synthetic yields and labels; their values teach the mechanics and have no ATLAS provenance.
 
+## One synthetic event
+
+Here is an invented example in the same `dataset-v1` format as the teaching data. It illustrates one row, not an observed collision or a physically complete simulation.
+
+| Object or slot | `pt` or MET magnitude (GeV) | `eta` | `phi` (radians) | Event-table fields |
+| --- | --- | --- | --- | --- |
+| Lepton 0: positively charged electron | 45 | 0.3 | 0.4 | `lep_pt_0`, `lep_eta_0`, `lep_phi_0`; `lep_charge_0 = 1`, `lep_type_0 = 11` |
+| Lepton 1: negatively charged muon | 30 | −0.6 | 1.1 | `lep_pt_1`, `lep_eta_1`, `lep_phi_1`; `lep_charge_1 = -1`, `lep_type_1 = 13` |
+| Jet 0: present | 55 | 1.2 | −2.0 | `jet_pt_0`, `jet_eta_0`, `jet_phi_0` |
+| Jet 1: absent, zero padding | 0 | 0 | 0 | `jet_pt_1`, `jet_eta_1`, `jet_phi_1` |
+| Missing transverse momentum (MET) | 40 | Not measured | −0.8 | `met_et`, `met_phi` |
+
+The beam travels along one axis. **`pt` (transverse momentum)** describes motion across that axis, rather than along it. **`eta` (pseudorapidity)** describes direction relative to the beam: zero means sideways, and larger absolute values mean closer to either beam direction. **`phi` (azimuth)** is the angle around the beam. Momentum magnitudes use GeV in this dataset; `eta` is dimensionless and `phi` uses radians.
+
+This event has `jet_n = 1`. Other rows can have zero or two jets. An absent slot's zeros are placeholders, not an extra physical object. MET has only a magnitude and a transverse direction: the table does not supply its longitudinal momentum. The [optional MiniHEP primer](minihep-concepts.md) follows this same event into five model input slots. Details of the optional ROOT conversion, including its units and missing-object convention, belong on the [data page](data.md#adapting-a-root-source-responsibly).
+
 ## Four-vectors and useful observables
 
-A particle's four-vector records energy and three-momentum. The reduced course ROOT tree stores `pt` and MET in GeV and `lep_E`/`jet_E` in MeV; the optional converter preserves the already-GeV `pt`/MET and ignores the energy branches for a massless reconstruction. Missing jet slots use `pt = -7` and are converted to zero padding. The HiggsLab synthetic `dataset-v1` schema uses `pt`, pseudorapidity `eta`, and azimuth `phi` with toy values in GeV. These conventions must be handled explicitly; the converter never divides source `pt` or MET by 1000. See [data and provenance](data.md) before using the optional ROOT path.
+A particle's **four-vector** records energy and three components of momentum. The tutorial constructs approximate four-vectors from the leptons' and jets' `pt`, `eta`, and `phi`, treating their masses as zero. You do not need to reconstruct a full collision to use these numerical inputs.
 
-The **dilepton invariant mass** mℓℓ combines the two charged lepton four-vectors. The **transverse mass** mT uses transverse information and the missing momentum; it is useful when neutrinos prevent reconstructing the full Higgs mass. These observables are deliberately incomplete but carry signal/background information.
+The **dilepton invariant mass** mℓℓ combines the two charged lepton four-vectors into a mass for the pair. In our example, that uses the electron and muon; it excludes the unobserved neutrinos. Their individual momenta along the beam are unknown, so we cannot reconstruct the full Higgs mass from this event record. The **transverse mass** mT instead combines the lepton pair's transverse information with MET. It gives a useful summary using the part of the momentum balance we can access. These observables carry signal/background information even though neither is a complete description of the decay.
 
 ## Signal strength μ
 
