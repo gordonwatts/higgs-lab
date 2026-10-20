@@ -12,6 +12,7 @@
   // nodes. Exit cleanly there instead of throwing during deferred script setup.
   if (!refreshButton || !status || !updated || !latestRoot || !historyRoot || !plotRoot) return;
   const leaderboardUrl = new URL("../leaderboard.json", document.currentScript.src);
+  let emptyStateMessage;
 
   const element = (name, text, className) => {
     const node = document.createElement(name);
@@ -121,6 +122,14 @@
       caption: "Latest team and baseline results",
       columns: ["Team", "Status", "Score", "Mean μ", "μ RMS error", "Mean μ uncertainty", "Pull width", "Recovery rate", "Recovery slope", "Recovery intercept", "False discovery rate", "Commit", "Attempt time (UTC)", "Status detail"],
     }, rows));
+    if (Array.isArray(document.latest) && document.latest.length === 0) {
+      const message = element("p", "No student submissions have been published yet. This is expected before the workshop starts. Student results will appear here after the instructor scores submitted commits. The baseline is a reference analysis of synthetic teaching data, not an experimental result. While waiting, explore the ");
+      const link = element("a", "model and fit comparison");
+      link.href = new URL("ablation/", leaderboardUrl).href;
+      message.append(link, element("span", "."));
+      emptyStateMessage = message;
+      latestRoot.append(message);
+    }
   }
 
   function renderHistory(document) {
@@ -200,6 +209,7 @@
 
   async function refresh() {
     refreshButton.disabled = true;
+    if (emptyStateMessage) emptyStateMessage.hidden = true;
     status.textContent = "Loading the latest published results…";
     try {
       const dataUrl = new URL(leaderboardUrl);

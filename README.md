@@ -10,6 +10,8 @@ HiggsLab is a hands-on tutorial in which you start from event records, make a si
 
 ## Get started
 
+Students: use a full fork of your instructor's workshop repository and start with the [student workspace guide](docs/student-workspace.md). Your executable editing surface is `submission/`.
+
 ```bash
 uv sync --extra ml --extra dev
 uv run higgslab run datasets/public output

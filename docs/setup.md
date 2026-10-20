@@ -1,5 +1,7 @@
 # Quickstart
 
+Use the [student workspace guide](student-workspace.md) to find the few files you will edit in your full workshop fork.
+
 In about 10–15 minutes, install HiggsLab, run its baseline, inspect a result, and change one small component. The command-line pipeline is the submission source of truth. The optional exploration notebook lives at `notebooks/01-explore.ipynb` for looking at the data and output.
 
 ## 1. Install
