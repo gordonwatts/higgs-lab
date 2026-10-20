@@ -14,7 +14,9 @@ def main(argv=None):
     r=sub.add_parser('run'); r.add_argument('dataset'); r.add_argument('output'); r.add_argument('--model')
     g=sub.add_parser('generate'); g.add_argument('output'); g.add_argument('--seed',type=int,default=42); g.add_argument('--mu',type=float,default=1); g.add_argument('--beta',type=float,default=1)
     c=sub.add_parser('check'); c.add_argument('--dataset',default='datasets/public'); c.add_argument('--output',default='output/check'); c.add_argument('--submission',default='submission')
-    t=sub.add_parser('train'); t.add_argument('dataset'); t.add_argument('output'); t.add_argument('--mode',choices=['classifier','frozen','finetuned'],default='classifier'); t.add_argument('--epochs',type=int,default=4)
+    t=sub.add_parser('train'); t.add_argument('dataset'); t.add_argument('output'); t.add_argument('--mode',choices=['classifier','frozen','finetuned','scratch'],default='classifier'); t.add_argument('--epochs',type=int,default=4)
+    t.add_argument('--checkpoint'); budget=t.add_mutually_exclusive_group(); budget.add_argument('--label-fraction',type=float,default=1.0); budget.add_argument('--label-count',type=int); t.add_argument('--subset-seed',type=int,default=42)
+    pre=sub.add_parser('pretrain'); pre.add_argument('dataset'); pre.add_argument('output'); pre.add_argument('--epochs',type=int,default=4)
     sl=sub.add_parser('submission-line'); sl.add_argument('--repo'); sl.add_argument('--team')
     sc=sub.add_parser('score-local'); sc.add_argument('--output',default='output/suite'); sc.add_argument('--count',type=int,default=12); sc.add_argument('--seed',type=int,default=71); sc.add_argument('--model'); sc.add_argument('--submission')
     args=p.parse_args(argv)
@@ -28,7 +30,11 @@ def main(argv=None):
         print(json.dumps({'public_local_truth':truth}))
     elif args.command=='train':
         from .training import train
-        print(train(args.dataset,args.output,args.mode,args.epochs))
+        print(train(args.dataset,args.output,args.mode,args.epochs,label_fraction=args.label_fraction,
+                    label_count=args.label_count,subset_seed=args.subset_seed,checkpoint=args.checkpoint))
+    elif args.command=='pretrain':
+        from .training import pretrain_checkpoint
+        print(pretrain_checkpoint(args.dataset,args.output,args.epochs))
     elif args.command=='score-local':
         from .local import score_local
         print(json.dumps(score_local(args.output,args.count,args.seed,args.model,args.submission),indent=2))

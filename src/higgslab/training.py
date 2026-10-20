@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import math
+import hashlib
+import time
 from pathlib import Path
 from typing import Any
 
@@ -11,13 +13,127 @@ import numpy as np
 import torch
 from torch import nn
 
-from .models import FeatureMLP, MiniHEP, MiniHEPClassifier, sample_hidden, state_to_json
+from .models import FeatureMLP, MiniHEP, MiniHEPClassifier, sample_hidden, state_to_json, state_from_json
 from .data import load_dataset
 
-MODES = ("classifier", "frozen", "finetuned", "supervised", "minihep-frozen", "minihep-finetuned")
+MODES = ("classifier", "frozen", "finetuned", "scratch", "supervised", "minihep-frozen", "minihep-finetuned")
 MODE_ALIASES = {"classifier": "supervised", "frozen": "minihep-frozen",
                 "finetuned": "minihep-finetuned"}
 SEED = 42
+
+
+def select_labeled_subset(pool: dict[str, np.ndarray], *, fraction: float = 0.1,
+                          count: int | None = None, seed: int = SEED) -> np.ndarray:
+    """Select an exact, reproducible stratified budget using only train labels.
+
+    Per-class permutations are fixed across budgets, yielding nested subsets.
+    """
+    train_idx = np.flatnonzero(pool["partition"] == 0)
+    if not 0 < fraction <= 1:
+        raise ValueError("label fraction must be in (0, 1]")
+    budget = max(2, int(round(len(train_idx) * fraction))) if count is None else count
+    if not isinstance(budget, (int, np.integer)) or not 2 <= budget <= len(train_idx):
+        raise ValueError("label count must be an integer between 2 and the training pool size")
+    labels = np.asarray(pool["label"])[train_idx]
+    classes = [train_idx[labels == label] for label in (0, 1)]
+    if any(len(rows) == 0 for rows in classes) or not np.isin(labels, [0, 1]).all():
+        raise ValueError("training labels must contain both binary classes")
+    n0 = int(np.clip(round(budget * len(classes[0]) / len(train_idx)),
+                     max(1, budget - len(classes[1])), min(len(classes[0]), budget - 1)))
+    rng = np.random.default_rng(seed)
+    return np.sort(np.concatenate([rng.permutation(classes[0])[:n0],
+                                   rng.permutation(classes[1])[:budget - n0]]))
+
+
+def _training_fingerprint(pool: dict[str, np.ndarray]) -> str:
+    digest = hashlib.sha256()
+    rows = np.flatnonzero(pool["partition"] == 0)
+    for key in sorted(set(pool) - {"label", "weight", "process", "partition"}):
+        values = np.ascontiguousarray(pool[key][rows])
+        digest.update(key.encode())
+        digest.update(values.dtype.str.encode())
+        digest.update(values.tobytes())
+    return digest.hexdigest()
+
+
+def load_encoder_checkpoint(path: str | Path) -> tuple[MiniHEP, dict]:
+    """Load portable JSON weights and the exact pretrained input transform."""
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeError) as exc:
+        raise ValueError("invalid encoder checkpoint JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("encoder checkpoint must be an object")
+    if payload.get("format") != "higgslab-encoder-v1" or payload.get("token_contract") != "five-slot-px-py-pz-E-v1":
+        raise ValueError("unsupported encoder checkpoint format/token contract")
+    required = {"architecture", "scaler", "weights", "training_fingerprint", "compute"}
+    if not required.issubset(payload):
+        raise ValueError("encoder checkpoint is missing required metadata")
+    architecture = payload["architecture"]
+    if (not isinstance(architecture, dict) or set(architecture) != {"width", "heads", "layers", "dropout"}
+            or any(type(architecture[key]) is not int or not 0 < architecture[key] <= 1024
+                   for key in ("width", "heads", "layers"))
+            or architecture["width"] % architecture["heads"] != 0
+            or not isinstance(architecture["dropout"], (int, float))
+            or not 0 <= architecture["dropout"] < 1):
+        raise ValueError("invalid checkpoint architecture")
+    scaler = payload["scaler"]
+    if not isinstance(scaler, dict) or not {"kind", "scale_gev", "mean", "scale"}.issubset(scaler):
+        raise ValueError("invalid checkpoint preprocessing")
+    if (scaler.get("kind") != "asinh" or scaler.get("scale_gev") != 50.0
+            or np.shape(scaler["mean"]) != (4,) or np.shape(scaler["scale"]) != (4,)
+            or not np.isfinite(scaler["mean"]).all() or not np.isfinite(scaler["scale"]).all()
+            or np.any(np.array(scaler["scale"]) <= 0)):
+        raise ValueError("invalid checkpoint preprocessing")
+    encoder = MiniHEP(**payload["architecture"])
+    weights = payload["weights"]
+    if not isinstance(weights, dict):
+        raise ValueError("invalid checkpoint weights")
+    try:
+        if any(not np.isfinite(np.asarray(value, dtype=float)).all() for value in weights.values()):
+            raise ValueError("checkpoint weights must be finite")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("checkpoint weights must be finite numeric arrays") from exc
+    try:
+        state_from_json(encoder, payload["weights"])
+    except (RuntimeError, TypeError) as exc:
+        raise ValueError("checkpoint weights do not match the architecture") from exc
+    encoder.eval()
+    return encoder, payload
+
+
+def pretrain_checkpoint(dataset_dir: str | Path, output: str | Path,
+                        epochs: int = 4) -> Path:
+    """Instructor-only reconstruction fit on all unlabeled partition-0 events."""
+    if epochs <= 0:
+        raise ValueError("epochs must be positive")
+    torch.set_num_threads(1)
+    torch.manual_seed(SEED)
+    pool = _load_pool(dataset_dir)
+    train_idx = np.flatnonzero(pool["partition"] == 0)
+    features = _feature_api()
+    events = _events(pool, np.arange(len(pool["label"])))
+    valid = np.asarray(features.token_mask(events), dtype=bool)
+    scaled, mean, scale = _token_scaler(np.asarray(features.tokens(events)), valid, train_idx)
+    architecture = {"width": 32, "heads": 4, "layers": 2, "dropout": 0.1}
+    encoder = MiniHEP(**architecture)
+    start = time.perf_counter()
+    history = _pretrain(encoder, torch.as_tensor(scaled), torch.as_tensor(valid),
+                        train_idx, train_idx, epochs, SEED)
+    payload = {"format": "higgslab-encoder-v1", "token_contract": "five-slot-px-py-pz-E-v1",
+               "architecture": architecture, "weights": state_to_json(encoder), "seed": SEED,
+               "scaler": {"kind": "asinh", "scale_gev": 50.0,
+                          "mean": mean.tolist(), "scale": scale.tolist()},
+               "training_fingerprint": _training_fingerprint(pool), "training_partition": 0,
+               "compute": {"epochs": epochs, "events": len(train_idx), "batch_size": 64,
+                           "optimizer_steps": epochs * math.ceil(len(train_idx) / 64),
+                           "elapsed_seconds": time.perf_counter() - start},
+               "reconstruction": history, "diagnostic_partition": 0,
+               "torch_version": torch.__version__}
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+    return output
 
 
 def _load_pool(dataset_dir: str | Path) -> dict[str, np.ndarray]:
@@ -179,7 +295,9 @@ def _json_linear_layers(model: FeatureMLP) -> list[dict[str, list]]:
 
 
 def train(dataset_dir: str | Path, output: str | Path, mode: str,
-          epochs: int = 4) -> Path:
+          epochs: int = 4, *, label_fraction: float = 1.0,
+          label_count: int | None = None, subset_seed: int = SEED,
+          checkpoint: str | Path | None = None) -> Path:
     """Train one path and export its full inference model as portable JSON.
 
     Partitions are fixed by the dataset contract: 0 trains, 1 validates, and
@@ -188,6 +306,8 @@ def train(dataset_dir: str | Path, output: str | Path, mode: str,
     if mode not in MODES:
         raise ValueError(f"mode must be one of {', '.join(MODES)}")
     mode = MODE_ALIASES.get(mode, mode)
+    if mode == "supervised" and checkpoint is not None:
+        raise ValueError("checkpoint is only supported for transformer modes")
     if epochs <= 0:
         raise ValueError("epochs must be positive")
     torch.set_num_threads(1)
@@ -200,6 +320,8 @@ def train(dataset_dir: str | Path, output: str | Path, mode: str,
     template_idx = np.flatnonzero(partition == 2)
     if min(len(train_idx), len(val_idx), len(template_idx)) == 0:
         raise ValueError("train, validation, and template partitions must all be non-empty")
+    labeled_idx = select_labeled_subset(pool, fraction=label_fraction, count=label_count,
+                                        seed=subset_seed)
     y = torch.as_tensor(pool["label"], dtype=torch.float32)
     if not torch.isfinite(y).all() or not torch.isin(y, torch.tensor([0.0, 1.0])).all():
         raise ValueError("label must contain only finite 0/1 values")
@@ -218,10 +340,10 @@ def train(dataset_dir: str | Path, output: str | Path, mode: str,
         raw = np.asarray(features.engineered(events), dtype=np.float32)
         if raw.ndim != 2 or raw.shape[0] != len(y) or not np.isfinite(raw).all():
             raise ValueError("features.engineered must return a finite (events, features) array")
-        mean, scale = _feature_scaler(raw, train_idx)
+        mean, scale = _feature_scaler(raw, labeled_idx)
         x = torch.as_tensor((raw - mean) / scale, dtype=torch.float32)
         model = FeatureMLP(x.shape[1])
-        classifier_history = _fit_classifier(model, x, y, weights, train_idx, epochs, SEED,
+        classifier_history = _fit_classifier(model, x, y, weights, labeled_idx, epochs, SEED,
                                              validation_indices=val_idx)
         payload: dict[str, Any] = {
             "format": "higgslab-model-v1", "mode": mode,
@@ -239,15 +361,32 @@ def train(dataset_dir: str | Path, output: str | Path, mode: str,
             raise ValueError("features.tokens/mask must return (events, 5, 4) and (events, 5)")
         if not np.isfinite(vectors).all() or np.any(valid.sum(axis=1) == 0):
             raise ValueError("token vectors must be finite and each event must contain a valid token")
-        scaled, mean, scale = _token_scaler(vectors, valid, train_idx)
+        checkpoint_payload = None
+        if checkpoint is not None:
+            encoder, checkpoint_payload = load_encoder_checkpoint(checkpoint)
+            if checkpoint_payload["training_fingerprint"] != _training_fingerprint(pool):
+                raise ValueError("checkpoint was pretrained on a different partition-0 pool")
+            scaler = checkpoint_payload["scaler"]
+            mean, scale = np.array(scaler["mean"]), np.array(scaler["scale"])
+            scaled = ((np.arcsinh(vectors / scaler["scale_gev"]) - mean) / scale).astype(np.float32)
+            scaled[~valid] = 0.0
+        else:
+            scaled, mean, scale = _token_scaler(vectors, valid, train_idx)
         x = torch.as_tensor(scaled, dtype=torch.float32)
         token_valid = torch.as_tensor(valid, dtype=torch.bool)
-        encoder = MiniHEP()
-        pretraining_history = _pretrain(encoder, x, token_valid, train_idx, val_idx,
-                                        epochs, SEED)
-        classifier = MiniHEPClassifier(encoder)
+        if checkpoint_payload is None or mode == "scratch":
+            encoder = MiniHEP(**(checkpoint_payload["architecture"] if checkpoint_payload else {}))
+        pretraining_history = {"train_loss": [], "validation_loss": []}
+        if checkpoint_payload is None and mode != "scratch":
+            pretraining_history = _pretrain(encoder, x, token_valid, train_idx, val_idx,
+                                            epochs, SEED)
+        # Match head initialization and adaptation randomness across scratch/fine-tuned arms.
+        if checkpoint_payload is not None or mode == "scratch":
+            torch.manual_seed(SEED + 30)
+        architecture = checkpoint_payload["architecture"] if checkpoint_payload else {"width": 32, "heads": 4, "layers": 2}
+        classifier = MiniHEPClassifier(encoder, width=architecture["width"])
         classifier_history = _fit_classifier(
-            classifier, x, y, weights, train_idx, epochs, SEED,
+            classifier, x, y, weights, labeled_idx, epochs, SEED,
             token_valid=token_valid, freeze_encoder=(mode == "minihep-frozen"),
             validation_indices=val_idx)
         classifier.eval()
@@ -257,12 +396,22 @@ def train(dataset_dir: str | Path, output: str | Path, mode: str,
             "scaler": {"kind": "asinh", "scale_gev": 50.0,
                        "mean": mean.tolist(), "scale": scale.tolist()},
             "weights": state_to_json(classifier),
-            "architecture": {"width": 32, "heads": 4, "layers": 2},
+            "architecture": architecture,
             "parameter_count": sum(parameter.numel() for parameter in classifier.parameters()),
             "encoder_parameter_count": sum(parameter.numel() for parameter in encoder.parameters()),
             "pretraining": pretraining_history,
             "classification": classifier_history,
         }
+        payload["checkpoint"] = ({"sha256": hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest(),
+                                  "format": checkpoint_payload["format"],
+                                  "training_fingerprint": checkpoint_payload["training_fingerprint"],
+                                  "pretraining_compute": checkpoint_payload["compute"],
+                                  "weights_loaded": mode != "scratch"}
+                                 if checkpoint_payload else None)
+    payload["label_budget"] = {"count": len(labeled_idx), "fraction": len(labeled_idx) / len(train_idx),
+                               "subset_seed": subset_seed, "method": "class-stratified-v1",
+                               "partition": 0, "pool_count": len(train_idx),
+                               "indices": labeled_idx.tolist()}
     output.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
     return output
 
@@ -288,7 +437,7 @@ def score(events: dict[str, np.ndarray], model_path: str | Path) -> np.ndarray:
         scaled = (np.arcsinh(vectors / scaler["scale_gev"]) - np.asarray(scaler["mean"])) / np.asarray(scaler["scale"])
         scaled[~valid] = 0.0
         torch.set_num_threads(1)
-        model = MiniHEPClassifier(MiniHEP(**payload["architecture"]))
+        model = MiniHEPClassifier(MiniHEP(**payload["architecture"]), width=payload["architecture"]["width"])
         expected = model.state_dict()
         incoming = payload["weights"]
         if incoming.keys() != expected.keys():
